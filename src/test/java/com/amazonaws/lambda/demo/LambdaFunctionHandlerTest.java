@@ -7,13 +7,14 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.events.S3Event;
 
 /**
  * A simple test harness for locally invoking your Lambda function handler.
  */
 public class LambdaFunctionHandlerTest {
 
-    private static Object input;
+    private static S3Event input;
 
     @BeforeClass
     public static void createInput() throws IOException {
