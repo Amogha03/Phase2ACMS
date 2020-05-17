@@ -32,5 +32,9 @@
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/Shashidar/Downloads/lucene-8.5.1/lucene-8.5.1/analysis/common/lucene-analyzers-common-8.5.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Shashidar/Downloads/lucene-8.5.1/lucene-8.5.1/core/lucene-core-8.5.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Shashidar/Downloads/lucene-8.5.1/lucene-8.5.1/queryparser/lucene-queryparser-8.5.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Shashidar/Downloads/lucene-8.5.1/lucene-8.5.1/demo/lucene-demo-8.5.1.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>
