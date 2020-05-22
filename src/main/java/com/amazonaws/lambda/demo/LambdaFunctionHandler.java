@@ -1,20 +1,9 @@
 package com.amazonaws.lambda.demo;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -79,7 +68,9 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 		try {
 			S3Object response = s3.getObject(new GetObjectRequest(bucket, key));
 			String contentType = response.getObjectMetadata().getContentType();
-			context.getLogger().log("CONTENT TYPE: " + contentType);
+			Date Expires=response.getObjectMetadata().getExpirationTime();
+			
+			context.getLogger().log("CONTENT TYPE: " + contentType+" Expires: "+Expires);
 			context.getLogger().log("path of s3 object: " + key);
 
 			/*
@@ -169,7 +160,7 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 					PutItemOutcome outcomedb = tableDB
 							.putItem(new Item().withPrimaryKey("transport type", transport_type, "version", "v_" + x)
 									.withMap("noofDays", tagMap).withString("bin loc", dstKey)
-									.withString("csv file", csv_name).withString("expiry", "22_05_2020"));
+									.withString("csv file", csv_name).withString("expiry", Expires.toString()));
 
 					//Updating the version in VersionControl Table
 					UpdateItemSpec updateItemSpec = new UpdateItemSpec()
