@@ -68,9 +68,8 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 		try {
 			S3Object response = s3.getObject(new GetObjectRequest(bucket, key));
 			String contentType = response.getObjectMetadata().getContentType();
-			Date Expires=response.getObjectMetadata().getExpirationTime();
 			
-			context.getLogger().log("CONTENT TYPE: " + contentType+" Expires: "+Expires);
+			context.getLogger().log("CONTENT TYPE: " + contentType);
 			context.getLogger().log("path of s3 object: " + key);
 
 			/*
@@ -138,9 +137,14 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 	            
 	            //Extracting the Object tags and putting then in a map
 	            final Map<String, Integer> tagMap = new HashMap<>();
+	            String Expiry="";
 	            if (getTagsResult != null) {
 	              final List<Tag> tags = getTagsResult.getTagSet();
 	              for (final Tag tag : tags) {
+	            	if(tag.getKey().equals("Expiry")) {
+	            		Expiry=tag.getValue();
+	            		continue;
+	            	}
 	                tagMap.put(tag.getKey(), Integer.parseInt(tag.getValue()));
 	              }
 	            }
@@ -160,7 +164,7 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 					PutItemOutcome outcomedb = tableDB
 							.putItem(new Item().withPrimaryKey("transport type", transport_type, "version", "v_" + x)
 									.withMap("noofDays", tagMap).withString("bin loc", dstKey)
-									.withString("csv file", csv_name).withString("expiry", Expires.toString()));
+									.withString("csv file", csv_name).withString("expiry", Expiry));
 
 					//Updating the version in VersionControl Table
 					UpdateItemSpec updateItemSpec = new UpdateItemSpec()
