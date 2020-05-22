@@ -11,6 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import org.apache.lucene.store.Directory;
@@ -36,6 +38,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.PutItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.UpdateItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
@@ -74,7 +77,7 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 			S3Object response = s3.getObject(new GetObjectRequest(bucket, key));
 			String contentType = response.getObjectMetadata().getContentType();
 			context.getLogger().log("CONTENT TYPE: " + contentType);
-			context.getLogger().log("path of s3 object: " + response.getRedirectLocation() + " " + response.toString());
+			context.getLogger().log("path of s3 object: " + response.toString()+" "+key);
 
 			/*
 			 * BufferedReader br = new BufferedReader(new
@@ -82,6 +85,15 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 			 * csvOutput,csvResult=""; while ((csvOutput = br.readLine()) != null) {
 			 * csvResult+=csvOutput+" "; }
 			 */
+			String temp[]=key.split("/");
+			String transport_type="";
+			for(int i=0;i<temp.length-1;i++)
+				transport_type += temp[i]+"/";
+			transport_type=transport_type.substring(0,transport_type.length()-1);
+			String csv_name=temp[temp.length-1];
+			context.getLogger().log(Arrays.toString(temp)+" "+transport_type+" "+csv_name);
+
+			
 			if (contentType.equals("text/csv")) {
 				FSTLoad fl = new FSTLoad();
 				FST<CharsRef> fst = fl.fstBuild(response);
@@ -117,30 +129,36 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 				System.out.println("Successfully and uploaded to " + dstBucket + "/" + dstKey);
 				
 				//retriving version from Version Control Table
-//				AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
-//			            .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://localhost:8000/", "us-east-2"))
-//			            .build();
 				AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
 						.withRegion(Regions.US_EAST_2)
 						.build();
 
 			        DynamoDB dynamoDB = new DynamoDB(client);
 
-			        Table table = dynamoDB.getTable("VersionControl");
-
-			        String transport_type = "IND/BD/BD_AIR/IND_IND";
+			        Table tableVC = dynamoDB.getTable("VersionControl");
+			        Table tableDB = dynamoDB.getTable("dynamo234");
 
 			        GetItemSpec spec = new GetItemSpec().withPrimaryKey("transport type", transport_type);
+			        
+			        final Map<String, Object> infoMap = new HashMap<String, Object>();
+			        infoMap.put("1day", 9);
+			        infoMap.put("2day", 80);
+			        infoMap.put("3day", 11);
 			        
 
 			        try {
 			            System.out.println("Attempting to read the item...");
-			            Item outcome = table.getItem(spec);
+			            Item outcome = tableVC.getItem(spec);
 			            
 			            String s=outcome.get("version").toString();
 			            int x=Integer.parseInt(s);
 			            System.out.println("incremented version: " + x);
 			            x++;
+			            
+			            PutItemOutcome outcomedb = tableDB
+			                    .putItem(new Item().withPrimaryKey("transport type", transport_type, "version", "v_"+x).withMap("noofDays", infoMap)
+			                    		.withString("bin loc", dstKey).withString("csv file", csv_name).withString("expiry", "22_05_2020"));
+	            
 			            
 			            UpdateItemSpec updateItemSpec = new UpdateItemSpec().withPrimaryKey("transport type", transport_type)
 				                .withUpdateExpression("set version =:v")
@@ -148,18 +166,15 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 				                .withReturnValues(ReturnValue.UPDATED_NEW);
 			            
 			            System.out.println("update succeeded: " + updateItemSpec);
-			            UpdateItemOutcome upoutcome = table.updateItem(updateItemSpec);
+			            UpdateItemOutcome upoutcome = tableVC.updateItem(updateItemSpec);            
 			            
 			        }
 			        catch (Exception e) {
-			            System.err.println("Unable to read item: " + transport_type);
+			            System.err.println("Unable to write item: " + transport_type);
 			            System.err.println(e.getMessage());
 			        }
 
 			}
-			
-			
-			
 			
 			return contentType;
 
