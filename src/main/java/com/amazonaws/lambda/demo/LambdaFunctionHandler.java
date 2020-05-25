@@ -62,7 +62,7 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 
 		final String FST_FILE = UUID.randomUUID().toString(); // random file name for FST
 
-		String dstBucket = "fstbucket234";
+		String dstBucket = "buildfstbkt";
 		String dstKey = FST_FILE + ".bin";
 
 		try {
@@ -136,41 +136,74 @@ public class LambdaFunctionHandler implements RequestHandler<S3Event, String> {
 	            GetObjectTaggingResult getTagsResult = s3.getObjectTagging(getTaggingRequest);
 	            
 	            //Extracting the Object tags and putting then in a map
-	            final Map<String, Integer> tagMap = new HashMap<>();
+	            final Map<String, String> tagMap[] = new HashMap[3];
 	            String Expiry="";
+	            int i=0;
 	            if (getTagsResult != null) {
 	              final List<Tag> tags = getTagsResult.getTagSet();
 	              for (final Tag tag : tags) {
-	            	if(tag.getKey().equals("Expiry")) {
+	            	if(tag.getKey().equals("ExpiryDate")) {
 	            		Expiry=tag.getValue();
 	            		continue;
 	            	}
-	                tagMap.put(tag.getKey(), Integer.parseInt(tag.getValue()));
+	            	String tk[]=tag.getKey().split("_");
+	            	String tv[]=tag.getValue().split("_");
+	            	context.getLogger().log(Arrays.toString(tk)+" "+Arrays.toString(tv));
+	            	if(tk[0].equals("A1")) {
+		            	tagMap[0]=new HashMap<String,String>();
+		            	for(int j=0;j<tk.length;j++)
+		            		tagMap[0].put(tk[j], tv[j]);
+		            }
+	            	
+	            	if(tk[0].equals("L1")) {
+		            	tagMap[1]=new HashMap<String,String>();
+		            	for(int j=0;j<tk.length;j++)
+		            		tagMap[1].put(tk[j], tv[j]);
+		            }
+	            	
+	            	if(tk[0].equals("D1")) {
+		            	tagMap[2]=new HashMap<String,String>();
+		            	for(int j=0;j<tk.length;j++)
+		            		tagMap[2].put(tk[j], tv[j]);
+		            }
 	              }
 	            }
 	            context.getLogger().log("Tags : " + tagMap);
 				
 				try {
 					//Attempting to read
+					int x=-1;
 					System.out.println("Attempting to read the item...");
-					Item outcome = tableVC.getItem(spec);
 					
-					//Converting the Object to Integer
-					String s = outcome.get("version").toString();
-					int x = Integer.parseInt(s);
-					x++;
+					if(Optional.ofNullable(tableVC.getItem(spec)).isPresent()) {
+						//If record is present in the Version Control Table
+						Item outcome = tableVC.getItem(spec);
+						String s = outcome.get("version").toString();
+						//Converting the String to Integer
+						x=Integer.parseInt(s);
+						x++;
+						//Updating the version in VersionControl Table
+						UpdateItemSpec updateItemSpec = new UpdateItemSpec()
+								.withPrimaryKey("transport type", transport_type).withUpdateExpression("set version =:v")
+								.withValueMap(new ValueMap().withNumber(":v", x)).withReturnValues(ReturnValue.UPDATED_NEW);
+						UpdateItemOutcome upoutcome = tableVC.updateItem(updateItemSpec);
+				    }
+					else{
+						//If record is not present in the Version Control Table
+						x=0;
+						PutItemOutcome outcomevc= tableVC
+								.putItem(new Item().withPrimaryKey("transport type", transport_type)
+										.withNumber("version",x));
+					}
 					
 					//Writing values into dynamodb table with latest version
 					PutItemOutcome outcomedb = tableDB
 							.putItem(new Item().withPrimaryKey("transport type", transport_type, "version", "v_" + x)
-									.withMap("noofDays", tagMap).withString("bin loc", dstKey)
+									.withMap("Aggregate Level", tagMap[0]).withMap("Lane Level", tagMap[1])
+									.withMap("Difference", tagMap[2]).withString("bin loc", dstKey)
 									.withString("csv file", csv_name).withString("expiry", Expiry));
 
-					//Updating the version in VersionControl Table
-					UpdateItemSpec updateItemSpec = new UpdateItemSpec()
-							.withPrimaryKey("transport type", transport_type).withUpdateExpression("set version =:v")
-							.withValueMap(new ValueMap().withNumber(":v", x)).withReturnValues(ReturnValue.UPDATED_NEW);
-					UpdateItemOutcome upoutcome = tableVC.updateItem(updateItemSpec);
+					
 
 				} catch (Exception e) {
 					System.err.println("Unable to write item: " + transport_type);
